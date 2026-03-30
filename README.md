@@ -16,8 +16,8 @@ Retail Midnight 현재 시즌용 장비 점검 애드온입니다.
 
 - `/bis`: 창 열기/닫기
 - `/bis raid`: 레이드 가능/불가 토글
-- `/bis spec`: 현재 클래스 내 스펙 순환
-- `/bis spec auto`: 현재 활성 스펙 자동 추적으로 복귀
+- `/bis spec`: 현재 클래스 내 특성 순환
+- `/bis spec auto`: 현재 활성 특성 자동 추적으로 복귀
 
 설치:
 

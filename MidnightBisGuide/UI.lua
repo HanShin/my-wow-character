@@ -221,7 +221,7 @@ end
 local function RefreshHeader()
     local summary = engine.GetHeaderSummary()
     ui.header.season:SetText(summary.season)
-    ui.header.spec:SetText("스펙: " .. summary.specName)
+    ui.header.spec:SetText("특성: " .. summary.specName)
     ui.header.profile:SetText("모드: " .. summary.profileLabel)
     ui.header.provider:SetText("기본 데이터: " .. summary.provider)
 end
@@ -867,6 +867,18 @@ function ui.Initialize()
     end)
     frame.TitleText:SetText("미드나이트 BiS 가이드")
 
+    UISpecialFrames = UISpecialFrames or {}
+    local registeredForEscape = false
+    for _, frameName in ipairs(UISpecialFrames) do
+        if frameName == "MidnightBisGuideFrame" then
+            registeredForEscape = true
+            break
+        end
+    end
+    if not registeredForEscape then
+        table.insert(UISpecialFrames, "MidnightBisGuideFrame")
+    end
+
     ApplyWindowPosition(frame)
 
     local header = {}
@@ -894,7 +906,7 @@ function ui.Initialize()
     local cycleSpec = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
     cycleSpec:SetSize(120, 24)
     cycleSpec:SetPoint("RIGHT", toggleMode, "LEFT", -8, 0)
-    cycleSpec:SetText("스펙 변경")
+    cycleSpec:SetText("특성 변경")
     cycleSpec:SetScript("OnClick", function()
         engine.CycleSelectedSpecID()
         ui.Refresh()
