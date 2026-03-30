@@ -24,6 +24,10 @@ function engine.InitializeDB()
     MidnightBisGuideDB = MidnightBisGuideDB or {}
     MidnightBisGuideDB.characters = MidnightBisGuideDB.characters or {}
     MidnightBisGuideDB.window = MidnightBisGuideDB.window or {}
+    MidnightBisGuideDB.minimap = MidnightBisGuideDB.minimap or {}
+    if MidnightBisGuideDB.minimap.angle == nil then
+        MidnightBisGuideDB.minimap.angle = 220
+    end
 end
 
 function engine.GetCharacterKey()
@@ -868,4 +872,8 @@ end
 
 function engine.GetWindowState()
     return MidnightBisGuideDB.window
+end
+
+function engine.GetMinimapState()
+    return MidnightBisGuideDB.minimap
 end

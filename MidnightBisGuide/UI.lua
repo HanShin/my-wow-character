@@ -31,6 +31,30 @@ local function CreateBackdropFrame(parent)
     return frame
 end
 
+local function Atan2(y, x)
+    if math.atan2 then
+        return math.atan2(y, x)
+    end
+
+    if x > 0 then
+        return math.atan(y / x)
+    end
+    if x < 0 and y >= 0 then
+        return math.atan(y / x) + math.pi
+    end
+    if x < 0 and y < 0 then
+        return math.atan(y / x) - math.pi
+    end
+    if x == 0 and y > 0 then
+        return math.pi / 2
+    end
+    if x == 0 and y < 0 then
+        return -math.pi / 2
+    end
+
+    return 0
+end
+
 local function SetMultiline(fs, width)
     fs:SetWidth(width)
     fs:SetJustifyH("LEFT")
@@ -58,8 +82,10 @@ local function GetCurrentItemText(rowData)
 end
 
 local ROW_WIDTH = 830
-local ROW_HEIGHT = 176
-local ROW_SPACING = 180
+local ROW_HEIGHT = 152
+local ROW_SPACING = 156
+local MINIMAP_RADIUS = 80
+local MINIMAP_ICON_TEXTURE = "Interface\\Icons\\INV_Misc_Map_01"
 
 local function ApplyWindowPosition(frame)
     local windowState = engine.GetWindowState()
@@ -84,6 +110,110 @@ local function SaveWindowPosition(frame)
     windowState.relativePoint = relativePoint
     windowState.x = x
     windowState.y = y
+end
+
+local function UpdateMinimapButtonPosition(button)
+    if not button or not Minimap then
+        return
+    end
+
+    local state = engine.GetMinimapState()
+    local angle = math.rad(state.angle or 220)
+    local x = math.cos(angle) * MINIMAP_RADIUS
+    local y = math.sin(angle) * MINIMAP_RADIUS
+
+    button:ClearAllPoints()
+    button:SetPoint("CENTER", Minimap, "CENTER", x, y)
+end
+
+local function UpdateMinimapButtonDrag(button)
+    if not button or not Minimap then
+        return
+    end
+
+    local centerX, centerY = Minimap:GetCenter()
+    if not centerX or not centerY then
+        return
+    end
+
+    local scale = Minimap:GetEffectiveScale() or UIParent:GetEffectiveScale() or 1
+    local cursorX, cursorY = GetCursorPosition()
+    cursorX = cursorX / scale
+    cursorY = cursorY / scale
+
+    local angle = math.deg(Atan2(cursorY - centerY, cursorX - centerX))
+    if angle < 0 then
+        angle = angle + 360
+    end
+
+    engine.GetMinimapState().angle = angle
+    UpdateMinimapButtonPosition(button)
+end
+
+local function CreateMinimapButton()
+    if ui.minimapButton or not Minimap then
+        return
+    end
+
+    local button = CreateFrame("Button", "MidnightBisGuideMinimapButton", Minimap)
+    button:SetSize(31, 31)
+    button:SetFrameStrata("MEDIUM")
+    button:SetFrameLevel(8)
+    button:RegisterForClicks("LeftButtonUp")
+    button:RegisterForDrag("RightButton")
+
+    local background = button:CreateTexture(nil, "BACKGROUND")
+    background:SetTexture("Interface\\Minimap\\MiniMap-TrackingBackground")
+    background:SetSize(20, 20)
+    background:SetPoint("TOPLEFT", 7, -5)
+
+    local icon = button:CreateTexture(nil, "ARTWORK")
+    icon:SetTexture(MINIMAP_ICON_TEXTURE)
+    icon:SetSize(20, 20)
+    icon:SetPoint("TOPLEFT", 7, -5)
+    icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+
+    local border = button:CreateTexture(nil, "OVERLAY")
+    border:SetTexture("Interface\\Minimap\\MiniMap-TrackingBorder")
+    border:SetSize(53, 53)
+    border:SetPoint("TOPLEFT")
+
+    local highlight = button:CreateTexture(nil, "HIGHLIGHT")
+    highlight:SetTexture("Interface\\Minimap\\UI-Minimap-ZoomButton-Highlight")
+    highlight:SetBlendMode("ADD")
+    highlight:SetSize(46, 46)
+    highlight:SetPoint("CENTER", 0, 1)
+
+    button.icon = icon
+    button.background = background
+    button.border = border
+
+    button:SetScript("OnClick", function()
+        ui.Toggle()
+    end)
+
+    button:SetScript("OnDragStart", function(self)
+        self:SetScript("OnUpdate", UpdateMinimapButtonDrag)
+        UpdateMinimapButtonDrag(self)
+    end)
+
+    button:SetScript("OnDragStop", function(self)
+        self:SetScript("OnUpdate", nil)
+        UpdateMinimapButtonPosition(self)
+    end)
+
+    button:SetScript("OnEnter", function(self)
+        GameTooltip:SetOwner(self, "ANCHOR_LEFT")
+        GameTooltip:AddLine("미드나이트 BiS 가이드")
+        GameTooltip:AddLine("좌클릭: 창 열기/닫기", 1, 1, 1)
+        GameTooltip:AddLine("우클릭 드래그: 아이콘 이동", 1, 1, 1)
+        GameTooltip:Show()
+    end)
+
+    button:SetScript("OnLeave", GameTooltip_Hide)
+
+    UpdateMinimapButtonPosition(button)
+    ui.minimapButton = button
 end
 
 local function RefreshHeader()
@@ -581,7 +711,7 @@ local function CreateRow(parent, index)
     row.current:SetPoint("TOPLEFT", row.currentLabel, "BOTTOMLEFT", 0, -2)
 
     row.currentSourceLabel = row:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    row.currentSourceLabel:SetPoint("TOPLEFT", 120, -48)
+    row.currentSourceLabel:SetPoint("TOPLEFT", 120, -44)
     row.currentSourceLabel:SetText("현재 획득처")
     row.currentSource = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     row.currentSource:SetPoint("TOPLEFT", row.currentSourceLabel, "BOTTOMLEFT", 0, -2)
@@ -594,7 +724,7 @@ local function CreateRow(parent, index)
     row.target:SetPoint("TOPLEFT", row.targetLabel, "BOTTOMLEFT", 0, -2)
 
     row.sourceLabel = row:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    row.sourceLabel:SetPoint("TOPLEFT", 350, -48)
+    row.sourceLabel:SetPoint("TOPLEFT", 350, -44)
     row.sourceLabel:SetText("획득처")
     row.source = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     row.source:SetPoint("TOPLEFT", row.sourceLabel, "BOTTOMLEFT", 0, -2)
@@ -617,7 +747,7 @@ local function CreateRow(parent, index)
     row.altEmpty:SetText("대체안 없음")
 
     row.altSource = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    row.altSource:SetPoint("TOPLEFT", row.altButtons[1], "BOTTOMLEFT", 0, -6)
+    row.altSource:SetPoint("TOPLEFT", row.altButtons[1], "BOTTOMLEFT", 0, -4)
     SetMultiline(row.altSource, 238)
 
     row.edit = CreateFrame("Button", nil, row, "UIPanelButtonTemplate")
@@ -627,7 +757,7 @@ local function CreateRow(parent, index)
 
     row.reset = CreateFrame("Button", nil, row, "UIPanelButtonTemplate")
     row.reset:SetSize(52, 22)
-    row.reset:SetPoint("TOPRIGHT", -10, -40)
+    row.reset:SetPoint("TOPRIGHT", -10, -38)
     row.reset:SetText("복원")
 
     return row
@@ -782,7 +912,7 @@ function ui.Initialize()
     scrollFrame:SetPoint("BOTTOMRIGHT", -30, 12)
 
     local content = CreateFrame("Frame", nil, scrollFrame)
-    content:SetSize(840, (#addon.Constants.SLOT_ORDER * ROW_SPACING) + 24)
+    content:SetSize(840, (#addon.Constants.SLOT_ORDER * ROW_SPACING) + 18)
     scrollFrame:SetScrollChild(content)
 
     for index, _ in ipairs(addon.Constants.SLOT_ORDER) do
@@ -792,5 +922,6 @@ function ui.Initialize()
     ui.frame = frame
     ui.header = header
     ui.editor = BuildEditor(frame)
+    CreateMinimapButton()
     frame:Hide()
 end
