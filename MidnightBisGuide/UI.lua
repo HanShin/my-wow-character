@@ -84,7 +84,7 @@ end
 local ROW_WIDTH = 830
 local ROW_HEIGHT = 152
 local ROW_SPACING = 156
-local MINIMAP_RADIUS = 80
+local MINIMAP_EDGE_PADDING = 6
 local MINIMAP_ICON_TEXTURE = "Interface\\Icons\\INV_Misc_Map_01"
 
 local function ApplyWindowPosition(frame)
@@ -117,10 +117,13 @@ local function UpdateMinimapButtonPosition(button)
         return
     end
 
+    local minimapRadius = math.min(Minimap:GetWidth(), Minimap:GetHeight()) * 0.5
+    local buttonRadius = math.max(button:GetWidth(), button:GetHeight()) * 0.5
+    local orbitRadius = minimapRadius + buttonRadius + MINIMAP_EDGE_PADDING
     local state = engine.GetMinimapState()
     local angle = math.rad(state.angle or 220)
-    local x = math.cos(angle) * MINIMAP_RADIUS
-    local y = math.sin(angle) * MINIMAP_RADIUS
+    local x = math.cos(angle) * orbitRadius
+    local y = math.sin(angle) * orbitRadius
 
     button:ClearAllPoints()
     button:SetPoint("CENTER", Minimap, "CENTER", x, y)
