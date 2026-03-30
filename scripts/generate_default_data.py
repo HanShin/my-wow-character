@@ -5,6 +5,7 @@ import html
 import json
 import pathlib
 import re
+from collections import Counter, defaultdict
 import urllib.request
 import urllib.parse
 
@@ -179,6 +180,12 @@ MANUAL_ITEM_SOURCE_OVERRIDES = {
         "sourceName": "Stormarion Citadel Event",
     },
 }
+
+
+DUNGEON_DEFAULT_BONUS = "12806"
+RAID_DEFAULT_BONUS = "12806"
+RAID_TIER_DEFAULT_BONUS = "12806:13335"
+CRAFTED_DEFAULT_BONUS = "12214:8960:12497:12066:13622:13667"
 
 
 DUNGEON_GUIDES = [
@@ -1134,6 +1141,8 @@ def select_no_raid_candidates(
     spec_id: int,
     stat_priority: dict[str, int],
     season_item_index: dict[int, dict],
+    raid_source_tokens: set[str],
+    raid_boss_tokens: set[str],
     wowhead_item: dict | None,
     icy_with: dict | None,
     icy_no: dict | None,
@@ -1149,7 +1158,7 @@ def select_no_raid_candidates(
         item_id = item.get("itemID")
         if not item_id or item_id in seen:
             return
-        if item.get("sourceType") == "raid":
+        if is_effective_raid_item(item, raid_source_tokens, raid_boss_tokens):
             return
         if not item_matches_slot(item.get("slotCategory") or item.get("slotKey"), slot_key):
             return
@@ -1162,7 +1171,7 @@ def select_no_raid_candidates(
         candidates.append((score, len(candidates), item))
         seen.add(item_id)
 
-    if wowhead_item and wowhead_item.get("sourceType") != "raid":
+    if wowhead_item and not is_effective_raid_item(wowhead_item, raid_source_tokens, raid_boss_tokens):
         append_candidate(wowhead_item, 500)
 
     if icy_no:
@@ -1197,6 +1206,8 @@ def merge_profiles(
     wowhead_crafted_items: list[dict],
     stat_priority: dict[str, int],
     season_item_index: dict[int, dict],
+    raid_source_tokens: set[str],
+    raid_boss_tokens: set[str],
 ) -> dict:
     with_raid_slots = icy_profiles["withRaid"]
     no_raid_slots = icy_profiles["noRaid"]
@@ -1245,6 +1256,8 @@ def merge_profiles(
             spec_id=spec_entry["specID"],
             stat_priority=stat_priority,
             season_item_index=season_item_index,
+            raid_source_tokens=raid_source_tokens,
+            raid_boss_tokens=raid_boss_tokens,
             wowhead_item=wowhead_item,
             icy_with=icy_with,
             icy_no=icy_no,
@@ -1253,7 +1266,12 @@ def merge_profiles(
         )
         no_best = no_raid_candidates[0] if no_raid_candidates else None
         no_alts = dedupe_items(
-            no_raid_candidates[1:] + ([wowhead_item] if wowhead_item and wowhead_item.get("sourceType") != "raid" else []),
+            no_raid_candidates[1:]
+            + (
+                [wowhead_item]
+                if wowhead_item and not is_effective_raid_item(wowhead_item, raid_source_tokens, raid_boss_tokens)
+                else []
+            ),
             no_best.get("itemID") if no_best else None,
         )
 
@@ -1526,6 +1544,157 @@ def render_content_collections(collections: list[dict]) -> str:
     return "\n".join(lines)
 
 
+def iter_profile_items(profiles: dict) -> list[dict]:
+    for class_profiles in profiles.values():
+        for spec_payload in class_profiles.values():
+            for profile_key in ("withRaid", "noRaid"):
+                slots = spec_payload.get(profile_key, {}).get("slots", {})
+                for slot_profile in slots.values():
+                    best = slot_profile.get("best")
+                    if best:
+                        yield best
+                    for alt in slot_profile.get("alternatives", []):
+                        if alt:
+                            yield alt
+
+
+def iter_collection_items(collections: list[dict]) -> list[dict]:
+    for collection in collections:
+        for boss in collection.get("bosses", []):
+            for item in boss.get("items", []):
+                if item:
+                    yield item
+
+
+def choose_counter_winner(counter: Counter) -> str | None:
+    if not counter:
+        return None
+    return counter.most_common(1)[0][0]
+
+
+def canonical_source_token(value: str) -> str:
+    token = (value or "").lower().replace("&", "and").replace("’", "'").strip()
+    token = re.sub(r"^the\s+", "", token)
+    token = re.sub(r"\s+", " ", token)
+    return token
+
+
+def split_source_tokens(value: str) -> set[str]:
+    tokens = set()
+    raw = value or ""
+    for candidate in [raw] + re.split(r"\s+-\s+|\s+/\s+|\s+\|\s+|\s+:\s+", raw):
+        token = canonical_source_token(candidate)
+        if token:
+            tokens.add(token)
+    return tokens
+
+
+def build_raid_reference_sets(raids: list[dict]) -> tuple[set[str], set[str]]:
+    raid_source_tokens = set()
+    raid_boss_tokens = set()
+
+    for raid in raids:
+        raid_source_tokens.update(split_source_tokens(raid.get("sourceName") or ""))
+        for boss in raid.get("bosses", []):
+            raid_boss_tokens.update(split_source_tokens(boss.get("name") or ""))
+
+    return raid_source_tokens, raid_boss_tokens
+
+
+def is_effective_raid_item(item: dict | None, raid_source_tokens: set[str], raid_boss_tokens: set[str]) -> bool:
+    if not item:
+        return False
+
+    if item.get("sourceType") == "raid":
+        return True
+
+    item_tokens = set()
+    item_tokens.update(split_source_tokens(item.get("sourceName") or ""))
+    item_tokens.update(split_source_tokens(item.get("bossName") or ""))
+    if not item_tokens:
+        return False
+
+    return any(token in raid_source_tokens or token in raid_boss_tokens for token in item_tokens)
+
+
+def enrich_missing_bonus_ids(profiles: dict, dungeons: list[dict], raids: list[dict]) -> None:
+    item_bonus_counts: dict[int, Counter] = defaultdict(Counter)
+    source_bonus_counts: dict[tuple[str, str], Counter] = defaultdict(Counter)
+    crafted_bonus_counts: Counter = Counter()
+    dungeon_sources = {entry["sourceName"] for entry in dungeons}
+    raid_sources = {entry["sourceName"] for entry in raids}
+    raid_bosses = {boss["name"] for raid in raids for boss in raid.get("bosses", [])}
+    dungeon_tokens = {canonical_source_token(source) for source in dungeon_sources}
+    raid_tokens = {canonical_source_token(source) for source in raid_sources}
+    raid_boss_tokens = {canonical_source_token(boss) for boss in raid_bosses}
+
+    all_items = list(iter_profile_items(profiles)) + list(iter_collection_items(dungeons)) + list(iter_collection_items(raids))
+    for item in all_items:
+        bonus_ids = item.get("bonusIDs")
+        if not bonus_ids:
+            continue
+
+        item_id = item.get("itemID")
+        if item_id:
+            item_bonus_counts[int(item_id)][bonus_ids] += 1
+
+        source_type = item.get("sourceType") or "other"
+        source_name = item.get("sourceName") or ""
+        source_bonus_counts[(source_type, source_name)][bonus_ids] += 1
+
+        if source_type == "crafted" or source_name in CRAFTING_SOURCE_NAMES:
+            crafted_bonus_counts[bonus_ids] += 1
+
+    def infer_bonus(item: dict) -> str | None:
+        if item.get("bonusIDs"):
+            return item["bonusIDs"]
+
+        item_id = item.get("itemID")
+        if item_id and item_bonus_counts.get(int(item_id)):
+            return choose_counter_winner(item_bonus_counts[int(item_id)])
+
+        source_type = item.get("sourceType") or "other"
+        source_name = item.get("sourceName") or ""
+        boss_name = item.get("bossName") or ""
+        source_token = canonical_source_token(source_name)
+        boss_token = canonical_source_token(boss_name)
+
+        if item.get("isTier") or source_type == "catalyst" or source_name == "Tier Set" or "catalyst" in source_token:
+            return RAID_TIER_DEFAULT_BONUS
+
+        if source_type == "raid":
+            return RAID_DEFAULT_BONUS
+
+        if source_type == "dungeon":
+            return choose_counter_winner(source_bonus_counts.get((source_type, source_name), Counter())) or DUNGEON_DEFAULT_BONUS
+
+        if source_type == "crafted" or source_name in CRAFTING_SOURCE_NAMES:
+            return choose_counter_winner(source_bonus_counts.get(("crafted", source_name), Counter())) or choose_counter_winner(crafted_bonus_counts) or CRAFTED_DEFAULT_BONUS
+
+        if source_token in raid_tokens or source_token in raid_boss_tokens or boss_token in raid_boss_tokens:
+            return RAID_DEFAULT_BONUS
+
+        if source_token in dungeon_tokens:
+            return choose_counter_winner(source_bonus_counts.get(("dungeon", source_name), Counter())) or DUNGEON_DEFAULT_BONUS
+
+        if " - " in source_name:
+            left, right = [part.strip() for part in source_name.split(" - ", 1)]
+            left_token = canonical_source_token(left)
+            right_token = canonical_source_token(right)
+            if left_token in raid_boss_tokens or right_token in raid_tokens:
+                return RAID_DEFAULT_BONUS
+            if right_token in dungeon_tokens:
+                return choose_counter_winner(source_bonus_counts.get(("dungeon", right), Counter())) or DUNGEON_DEFAULT_BONUS
+
+        return None
+
+    for item in all_items:
+        if not item.get("bonusIDs"):
+            inferred = infer_bonus(item)
+            if inferred:
+                item["bonusIDs"] = inferred
+
+
 def main() -> None:
     profiles: dict[str, dict[int, dict]] = {}
     errors = []
@@ -1548,7 +1717,32 @@ def main() -> None:
             }
         )
 
+    for raid_entry in RAID_OVERVIEWS:
+        try:
+            overview_html = fetch(raid_entry["overviewUrl"])
+            raid_bosses = []
+            for boss_entry in parse_wowhead_raid_boss_list(overview_html):
+                boss_html = fetch(boss_entry["guideUrl"])
+                raid_bosses.append(
+                    {
+                        "name": boss_entry["name"],
+                        "items": parse_wowhead_raid_boss_loot(boss_html, raid_entry["sourceName"], boss_entry["name"]),
+                    }
+                )
+        except Exception as exc:  # noqa: BLE001
+            errors.append({"specID": 0, "error": str(exc), "url": raid_entry["overviewUrl"]})
+            continue
+
+        raids.append(
+            {
+                "sourceName": raid_entry["sourceName"],
+                "guideUrl": raid_entry["overviewUrl"],
+                "bosses": raid_bosses,
+            }
+        )
+
     season_item_index = extract_season_items_index(dungeons)
+    raid_source_tokens, raid_boss_tokens = build_raid_reference_sets(raids)
 
     for entry in SPEC_ENTRIES:
         gear_url = icy_guide_url(entry)
@@ -1591,6 +1785,8 @@ def main() -> None:
             wowhead_crafted_items=wowhead_crafted_items,
             stat_priority=stat_priority,
             season_item_index=season_item_index,
+            raid_source_tokens=raid_source_tokens,
+            raid_boss_tokens=raid_boss_tokens,
         )
         fill_dual_wield_offhand(entry["specID"], built)
 
@@ -1602,29 +1798,7 @@ def main() -> None:
             "noRaid": built["noRaid"],
         }
 
-    for raid_entry in RAID_OVERVIEWS:
-        try:
-            overview_html = fetch(raid_entry["overviewUrl"])
-            raid_bosses = []
-            for boss_entry in parse_wowhead_raid_boss_list(overview_html):
-                boss_html = fetch(boss_entry["guideUrl"])
-                raid_bosses.append(
-                    {
-                        "name": boss_entry["name"],
-                        "items": parse_wowhead_raid_boss_loot(boss_html, raid_entry["sourceName"], boss_entry["name"]),
-                    }
-                )
-        except Exception as exc:  # noqa: BLE001
-            errors.append({"specID": 0, "error": str(exc), "url": raid_entry["overviewUrl"]})
-            continue
-
-        raids.append(
-            {
-                "sourceName": raid_entry["sourceName"],
-                "guideUrl": raid_entry["overviewUrl"],
-                "bosses": raid_bosses,
-            }
-        )
+    enrich_missing_bonus_ids(profiles, dungeons, raids)
 
     generated_at = dt.datetime.utcnow().replace(microsecond=0).isoformat() + "Z"
 
