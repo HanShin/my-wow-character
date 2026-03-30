@@ -1,4 +1,4 @@
-# Midnight BiS Guide
+# 그롬마쉬Bis클럽
 
 Retail Midnight 현재 시즌용 장비 점검 애드온입니다.
 
@@ -21,7 +21,8 @@ Retail Midnight 현재 시즌용 장비 점검 애드온입니다.
 
 설치:
 
-- `MidnightBisGuide/` 폴더를 그대로 `Interface/AddOns/` 아래에 배치합니다.
+- `GrommashBisClub/` 폴더를 그대로 `Interface/AddOns/` 아래에 배치합니다.
+- 기존 설정 호환을 위해 내부 TOC 파일명은 `MidnightBisGuide.toc`를 유지합니다.
 
 ## 데이터 생성
 
@@ -31,4 +32,4 @@ Retail Midnight 현재 시즌용 장비 점검 애드온입니다.
 python3 scripts/generate_default_data.py
 ```
 
-생성 결과는 `MidnightBisGuide/Data/SeasonData.lua`와 `MidnightBisGuide/Data/SeasonContent.lua`에 기록됩니다.
+생성 결과는 `GrommashBisClub/Data/SeasonData.lua`와 `GrommashBisClub/Data/SeasonContent.lua`에 기록됩니다.

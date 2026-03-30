@@ -157,7 +157,7 @@ local function CreateMinimapButton()
         return
     end
 
-    local button = CreateFrame("Button", "MidnightBisGuideMinimapButton", Minimap)
+    local button = CreateFrame("Button", "GrommashBisClubMinimapButton", Minimap)
     button:SetSize(31, 31)
     button:SetFrameStrata("MEDIUM")
     button:SetFrameLevel(8)
@@ -206,7 +206,7 @@ local function CreateMinimapButton()
 
     button:SetScript("OnEnter", function(self)
         GameTooltip:SetOwner(self, "ANCHOR_LEFT")
-        GameTooltip:AddLine("미드나이트 BiS 가이드")
+        GameTooltip:AddLine("그롬마쉬Bis클럽")
         GameTooltip:AddLine("좌클릭: 창 열기/닫기", 1, 1, 1)
         GameTooltip:AddLine("우클릭 드래그: 아이콘 이동", 1, 1, 1)
         GameTooltip:Show()
@@ -851,7 +851,7 @@ function ui.Initialize()
         return
     end
 
-    local frame = CreateFrame("Frame", "MidnightBisGuideFrame", UIParent, "BasicFrameTemplateWithInset")
+    local frame = CreateFrame("Frame", "GrommashBisClubFrame", UIParent, "BasicFrameTemplateWithInset")
     frame:SetSize(880, 760)
     frame:SetMovable(true)
     frame:SetClampedToScreen(true)
@@ -865,18 +865,18 @@ function ui.Initialize()
     frame:SetScript("OnHide", function(self)
         SaveWindowPosition(self)
     end)
-    frame.TitleText:SetText("미드나이트 BiS 가이드")
+    frame.TitleText:SetText("그롬마쉬Bis클럽")
 
     UISpecialFrames = UISpecialFrames or {}
     local registeredForEscape = false
     for _, frameName in ipairs(UISpecialFrames) do
-        if frameName == "MidnightBisGuideFrame" then
+        if frameName == "GrommashBisClubFrame" then
             registeredForEscape = true
             break
         end
     end
     if not registeredForEscape then
-        table.insert(UISpecialFrames, "MidnightBisGuideFrame")
+        table.insert(UISpecialFrames, "GrommashBisClubFrame")
     end
 
     ApplyWindowPosition(frame)

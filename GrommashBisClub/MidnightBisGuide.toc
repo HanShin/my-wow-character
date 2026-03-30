@@ -1,5 +1,5 @@
 ## Interface: 120001
-## Title: 미드나이트 BiS 가이드
+## Title: 그롬마쉬Bis클럽
 ## Notes: 현재 장비를 이번 시즌 BiS 목표와 비교하고 업그레이드 획득처를 안내합니다.
 ## Author: OpenAI Codex
 ## Version: 0.1.0

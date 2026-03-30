@@ -10,8 +10,8 @@ import urllib.parse
 
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
-OUTPUT = ROOT / "MidnightBisGuide" / "Data" / "SeasonData.lua"
-CONTENT_OUTPUT = ROOT / "MidnightBisGuide" / "Data" / "SeasonContent.lua"
+OUTPUT = ROOT / "GrommashBisClub" / "Data" / "SeasonData.lua"
+CONTENT_OUTPUT = ROOT / "GrommashBisClub" / "Data" / "SeasonContent.lua"
 
 
 SPEC_ENTRIES = [

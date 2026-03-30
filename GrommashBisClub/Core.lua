@@ -12,7 +12,7 @@ SlashCmdList.MIDNIGHTBISGUIDE = function(message)
     if command == "raid" then
         engine.ToggleProfileKey()
         ui.Refresh()
-        print(("미드나이트 BiS 가이드: %s"):format(addon.Constants.PROFILE_LABELS[engine.GetProfileKey()]))
+        print(("그롬마쉬Bis클럽: %s"):format(addon.Constants.PROFILE_LABELS[engine.GetProfileKey()]))
         return
     end
 
