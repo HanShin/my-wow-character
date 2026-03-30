@@ -459,13 +459,12 @@ end
 
 function engine.GetHeaderSummary()
     local specID = engine.GetSelectedSpecID()
-    local registry = specID and addon.Data.SpecRegistry.bySpecID[specID] or nil
 
     return {
         season = addon.Data.SeasonMeta.label,
         profileLabel = addon.Constants.PROFILE_LABELS[engine.GetProfileKey()],
         specID = specID,
-        specName = registry and registry.name or "알 수 없음",
+        specName = specID and util.SafeSpecName(specID) or "알 수 없음",
         provider = addon.Data.SeasonMeta.provider,
     }
 end

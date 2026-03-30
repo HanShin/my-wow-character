@@ -9,6 +9,7 @@ Bootstrap.lua
 Data/SeasonMeta.lua
 Data/SpecRegistry.lua
 Data/SeasonData.lua
+Data/Localization.lua
 Util.lua
 Engine.lua
 UI.lua

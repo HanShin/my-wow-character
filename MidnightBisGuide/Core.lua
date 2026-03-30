@@ -39,6 +39,7 @@ end
 
 local eventFrame = CreateFrame("Frame")
 eventFrame:RegisterEvent("ADDON_LOADED")
+eventFrame:RegisterEvent("GET_ITEM_INFO_RECEIVED")
 eventFrame:RegisterEvent("PLAYER_EQUIPMENT_CHANGED")
 eventFrame:RegisterEvent("PLAYER_SPECIALIZATION_CHANGED")
 
@@ -52,6 +53,12 @@ eventFrame:SetScript("OnEvent", function(_, event, arg1)
         engine.BuildDefaultItemIndex()
         ui.Initialize()
         return
+    end
+
+    if event == "GET_ITEM_INFO_RECEIVED" then
+        if addon.State.pendingItemLoads then
+            addon.State.pendingItemLoads[arg1] = nil
+        end
     end
 
     if ui.frame and ui.frame:IsShown() then
