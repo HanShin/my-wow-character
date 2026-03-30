@@ -6,6 +6,12 @@ addon.Engine = engine
 
 local STATUS = addon.Constants.STATUS
 local PROFILE_KEYS = addon.Constants.PROFILE_KEYS
+local MANUAL_ITEM_SOURCE_OVERRIDES = {
+    [264507] = {
+        sourceType = "other",
+        sourceName = "Stormarion Citadel Event",
+    },
+}
 
 local function EnsureTable(parent, key)
     if not parent[key] then
@@ -140,6 +146,23 @@ end
 function engine.BuildDefaultItemIndex()
     local index = {}
     local profiles = addon.Data.SeasonData.profiles or {}
+    local sourcePriority = {
+        other = 1,
+        weekly_vault = 2,
+        catalyst = 3,
+        crafted = 4,
+        dungeon = 5,
+        raid = 5,
+    }
+
+    local function IsPlaceholderName(value)
+        return type(value) == "string"
+            and (value:match("^Item%s+%d+$") or value:match("^아이템%s+#%d+$"))
+    end
+
+    local function GetSourcePriority(item)
+        return sourcePriority[item and item.sourceType or "other"] or 0
+    end
 
     local function AddItem(item)
         if not item or not item.itemID then
@@ -147,14 +170,36 @@ function engine.BuildDefaultItemIndex()
         end
 
         local normalized = util.NormalizeItem(item)
+        local override = MANUAL_ITEM_SOURCE_OVERRIDES[normalized.itemID]
+        if override then
+            for key, value in pairs(override) do
+                normalized[key] = value
+            end
+        end
         if not index[item.itemID] then
             index[item.itemID] = normalized
             return
         end
 
         local existing = index[item.itemID]
+        local preferNormalizedSource = GetSourcePriority(normalized) > GetSourcePriority(existing)
+            or (
+                normalized.sourceType
+                and normalized.sourceType ~= "other"
+                and (existing.sourceType == "other" or existing.sourceName == nil or existing.sourceName == "")
+            )
+
+        if preferNormalizedSource then
+            existing.sourceType = normalized.sourceType or existing.sourceType
+            existing.sourceName = normalized.sourceName or existing.sourceName
+            existing.bossName = normalized.bossName or existing.bossName
+            existing.notes = normalized.notes or existing.notes
+        end
+
         for key, value in pairs(normalized) do
             if existing[key] == nil or existing[key] == "" then
+                existing[key] = value
+            elseif key == "name" and IsPlaceholderName(existing[key]) and value and value ~= "" then
                 existing[key] = value
             end
         end
@@ -197,8 +242,10 @@ function engine.GetItemIndex()
     return addon.State.itemIndex
 end
 
+local EnrichSlotProfile
+
 local function CopySlotProfileToKey(slotProfile, slotKey)
-    local copied = util.NormalizeSlotProfile(slotProfile)
+    local copied = EnrichSlotProfile(slotProfile, slotKey)
     if not copied then
         return nil
     end
@@ -228,10 +275,45 @@ local function GetIndexedItem(item)
     for key, value in pairs(item) do
         if merged[key] == nil or merged[key] == "" then
             merged[key] = value
+        elseif key == "name"
+            and type(merged[key]) == "string"
+            and (merged[key]:match("^Item%s+%d+$") or merged[key]:match("^아이템%s+#%d+$"))
+            and value and value ~= "" then
+            merged[key] = value
+        elseif (key == "sourceType" or key == "sourceName" or key == "bossName" or key == "notes")
+            and (merged.sourceType == "other" or merged.sourceName == nil or merged.sourceName == "")
+            and value and value ~= "" then
+            merged[key] = value
+        end
+    end
+
+    local override = MANUAL_ITEM_SOURCE_OVERRIDES[merged.itemID]
+    if override then
+        for key, value in pairs(override) do
+            merged[key] = value
         end
     end
 
     return merged
+end
+
+EnrichSlotProfile = function(slotProfile, slotKey)
+    local enriched = util.NormalizeSlotProfile(slotProfile)
+    if not enriched then
+        return nil
+    end
+
+    if enriched.best then
+        enriched.best = GetIndexedItem(enriched.best)
+        enriched.best.slotKey = slotKey or enriched.best.slotKey
+    end
+
+    for index, alt in ipairs(enriched.alternatives or {}) do
+        enriched.alternatives[index] = GetIndexedItem(alt)
+        enriched.alternatives[index].slotKey = slotKey or enriched.alternatives[index].slotKey
+    end
+
+    return enriched
 end
 
 local function GetDefaultSlotProfile(specID, profileKey, slotKey)
@@ -243,7 +325,7 @@ local function GetDefaultSlotProfile(specID, profileKey, slotKey)
     local slots = specData[profileKey].slots or {}
     local defaultSlot = slots[slotKey]
     if defaultSlot then
-        return util.NormalizeSlotProfile(defaultSlot)
+        return EnrichSlotProfile(defaultSlot, slotKey)
     end
 
     if slotKey ~= "OFFHAND" then
@@ -467,7 +549,7 @@ function engine.BuildCustomSlotProfile(slotKey, bestItem, alt1Item, alt2Item)
         result.alternatives[#result.alternatives + 1] = CopyIntoSlot(alt2Item)
     end
 
-    return util.NormalizeSlotProfile(result)
+    return EnrichSlotProfile(result, slotKey)
 end
 
 function engine.GetCharacterCustomRoot(specID, profileKey)
@@ -568,7 +650,7 @@ function engine.NormalizeCustomSlot(bestItemID, alt1ItemID, alt2ItemID, sourceTy
         end
     end
 
-    return util.NormalizeSlotProfile(result)
+    return EnrichSlotProfile(result)
 end
 
 function engine.SaveSlotOverride(specID, profileKey, slotKey, customProfile)
@@ -585,7 +667,7 @@ end
 function engine.GetEffectiveSlotProfile(specID, profileKey, slotKey)
     local customSlot = GetCustomSlotOverride(specID, profileKey, slotKey)
     if customSlot then
-        return util.NormalizeSlotProfile(customSlot)
+        return EnrichSlotProfile(customSlot, slotKey)
     end
 
     return GetDefaultSlotProfile(specID, profileKey, slotKey)
@@ -671,6 +753,27 @@ local function ResolveDuplicateBest(slotMap, slotA, slotB)
     second.duplicateConflict = true
 end
 
+local function ResolveCurrentSourceItem(currentItemID, slotProfile, slotKey)
+    if not currentItemID then
+        return nil
+    end
+
+    if slotProfile and slotProfile.best and slotProfile.best.itemID == currentItemID then
+        return GetIndexedItem(slotProfile.best)
+    end
+
+    for _, alternative in ipairs(slotProfile and slotProfile.alternatives or {}) do
+        if alternative.itemID == currentItemID then
+            return GetIndexedItem(alternative)
+        end
+    end
+
+    return GetIndexedItem({
+        itemID = currentItemID,
+        slotKey = slotKey,
+    })
+end
+
 function engine.BuildResolvedProfile(specID, profileKey)
     local resolved = {}
     for _, slotKey in ipairs(addon.Constants.SLOT_ORDER) do
@@ -698,6 +801,7 @@ function engine.BuildSlotStates()
     for _, slotKey in ipairs(addon.Constants.SLOT_ORDER) do
         local slotProfile = resolved[slotKey]
         local currentItemID = GetEquippedItemID(slotKey)
+        local currentSourceItem = ResolveCurrentSourceItem(currentItemID, slotProfile, slotKey)
         local equippedLookup = nil
         if slotKey == "FINGER1" or slotKey == "FINGER2" then
             equippedLookup = ringLookup
@@ -740,6 +844,7 @@ function engine.BuildSlotStates()
             statusLabel = addon.Constants.STATUS_LABELS[status] or status,
             currentItemID = currentItemID,
             currentItemLink = GetEquippedItemLink(slotKey),
+            currentSourceItem = currentSourceItem,
             best = slotProfile and slotProfile.best or nil,
             alternatives = slotProfile and slotProfile.alternatives or {},
             duplicateConflict = slotProfile and slotProfile.duplicateConflict or false,

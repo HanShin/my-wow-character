@@ -58,8 +58,8 @@ local function GetCurrentItemText(rowData)
 end
 
 local ROW_WIDTH = 830
-local ROW_HEIGHT = 144
-local ROW_SPACING = 148
+local ROW_HEIGHT = 176
+local ROW_SPACING = 180
 
 local function ApplyWindowPosition(frame)
     local windowState = engine.GetWindowState()
@@ -580,6 +580,13 @@ local function CreateRow(parent, index)
     row.current = CreateItemLinkButton(row, 220, 24)
     row.current:SetPoint("TOPLEFT", row.currentLabel, "BOTTOMLEFT", 0, -2)
 
+    row.currentSourceLabel = row:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    row.currentSourceLabel:SetPoint("TOPLEFT", 120, -48)
+    row.currentSourceLabel:SetText("현재 획득처")
+    row.currentSource = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    row.currentSource:SetPoint("TOPLEFT", row.currentSourceLabel, "BOTTOMLEFT", 0, -2)
+    SetMultiline(row.currentSource, 210)
+
     row.targetLabel = row:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     row.targetLabel:SetPoint("TOPLEFT", 350, -10)
     row.targetLabel:SetText("목표")
@@ -608,6 +615,10 @@ local function CreateRow(parent, index)
     row.altEmpty = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     row.altEmpty:SetPoint("TOPLEFT", row.altLabel, "BOTTOMLEFT", 0, -2)
     row.altEmpty:SetText("대체안 없음")
+
+    row.altSource = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    row.altSource:SetPoint("TOPLEFT", row.altButtons[1], "BOTTOMLEFT", 0, -6)
+    SetMultiline(row.altSource, 238)
 
     row.edit = CreateFrame("Button", nil, row, "UIPanelButtonTemplate")
     row.edit:SetSize(52, 22)
@@ -639,22 +650,41 @@ function ui.Refresh()
         else
             SetItemLinkButton(row.current, nil, "|cff8f8f8f장착 안 됨|r")
         end
+        if not rowData.currentItemID then
+            row.currentSource:SetText("|cff8f8f8f장착 안 됨|r")
+            row.currentSource:Show()
+        elseif rowData.currentSourceItem then
+            row.currentSource:SetText(util.GetAcquisitionLabel(rowData.currentSourceItem))
+            row.currentSource:Show()
+        else
+            row.currentSource:SetText("획득처 정보 없음")
+            row.currentSource:Show()
+        end
         SetItemLinkButton(row.target, rowData.best, "|cff8f8f8f데이터 없음|r")
         row.source:SetText(rowData.best and util.GetAcquisitionLabel(rowData.best) or "획득처 정보 없음")
 
         if rowData.alternatives and #rowData.alternatives > 0 then
+            local altSourceLines = {}
             row.altEmpty:Hide()
             for altIndex, button in ipairs(row.altButtons) do
                 local altItem = rowData.alternatives[altIndex]
                 if altItem then
                     SetItemLinkButton(button, altItem, nil)
                     button:Show()
+                    altSourceLines[#altSourceLines + 1] = ("%d. %s"):format(
+                        altIndex,
+                        util.GetAcquisitionLabel(altItem):gsub("\n", " / ")
+                    )
                 else
                     button:Hide()
                 end
             end
+            row.altSource:SetText(table.concat(altSourceLines, "\n"))
+            row.altSource:Show()
         else
             row.altEmpty:Show()
+            row.altSource:SetText("")
+            row.altSource:Hide()
             for _, button in ipairs(row.altButtons) do
                 button:Hide()
             end

@@ -2,7 +2,7 @@ local addon = MidnightBisGuide
 
 addon.Data.SeasonData = {
     seasonID = "midnight-season-1",
-    generatedAt = "2026-03-30T07:46:58Z",
+    generatedAt = "2026-03-30T08:22:18Z",
     profiles = {
         ["DEATHKNIGHT"] = {
             [250] = {
@@ -28297,11 +28297,11 @@ addon.Data.SeasonData = {
                                 name = "Loa Worshiper's Band",
                                 slotKey = "FINGER2",
                                 slotCategory = "FINGER2",
-                                sourceType = "other",
-                                sourceName = "Jewelcrafting",
+                                sourceType = "crafted",
+                                sourceName = "Crafted",
                                 stats = "Crit/Mastery",
                                 isTier = false,
-                                isCrafted = false,
+                                isCrafted = true,
                             },
                             alternatives = {
                             },
@@ -28375,10 +28375,10 @@ addon.Data.SeasonData = {
                                 name = "Masterwork Sin'dorei Amulet",
                                 slotKey = "NECK",
                                 slotCategory = "NECK",
-                                sourceType = "other",
-                                sourceName = "Jewelcrafting",
+                                sourceType = "crafted",
+                                sourceName = "Crafted",
                                 isTier = false,
-                                isCrafted = false,
+                                isCrafted = true,
                             },
                             alternatives = {
                             },
@@ -28783,11 +28783,11 @@ addon.Data.SeasonData = {
                                 name = "Loa Worshiper's Band",
                                 slotKey = "FINGER2",
                                 slotCategory = "FINGER2",
-                                sourceType = "other",
-                                sourceName = "Jewelcrafting",
+                                sourceType = "crafted",
+                                sourceName = "Crafted",
                                 stats = "Crit/Mastery",
                                 isTier = false,
-                                isCrafted = false,
+                                isCrafted = true,
                             },
                             alternatives = {
                                 {
@@ -29057,10 +29057,10 @@ addon.Data.SeasonData = {
                                 name = "Masterwork Sin'dorei Amulet",
                                 slotKey = "NECK",
                                 slotCategory = "NECK",
-                                sourceType = "other",
-                                sourceName = "Jewelcrafting",
+                                sourceType = "crafted",
+                                sourceName = "Crafted",
                                 isTier = false,
-                                isCrafted = false,
+                                isCrafted = true,
                             },
                             alternatives = {
                                 {
@@ -49160,7 +49160,7 @@ addon.Data.SeasonData = {
                                 slotKey = "TRINKET2",
                                 slotCategory = "TRINKET2",
                                 sourceType = "other",
-                                sourceName = "Unknown",
+                                sourceName = "Stormarion Citadel Event",
                                 stats = "Agi/Int",
                                 isTier = false,
                                 isCrafted = false,
@@ -50114,7 +50114,7 @@ addon.Data.SeasonData = {
                                 slotKey = "TRINKET2",
                                 slotCategory = "TRINKET2",
                                 sourceType = "other",
-                                sourceName = "Unknown",
+                                sourceName = "Stormarion Citadel Event",
                                 stats = "Agi/Int",
                                 isTier = false,
                                 isCrafted = false,

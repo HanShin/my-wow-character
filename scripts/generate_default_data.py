@@ -160,6 +160,27 @@ WOWHEAD_RAID_INSTANCE_PATTERNS = [
 ]
 
 
+CRAFTING_SOURCE_NAMES = {
+    "Alchemy",
+    "Blacksmithing",
+    "Crafting",
+    "Crafted",
+    "Engineering",
+    "Inscription",
+    "Jewelcrafting",
+    "Leatherworking",
+    "Tailoring",
+}
+
+
+MANUAL_ITEM_SOURCE_OVERRIDES = {
+    264507: {
+        "sourceType": "other",
+        "sourceName": "Stormarion Citadel Event",
+    },
+}
+
+
 DUNGEON_GUIDES = [
     {
         "sourceName": "Magister's Terrace",
@@ -642,7 +663,7 @@ def build_item_from_wowhead_data(
 ) -> dict:
     jsonequip = item_info.get("jsonequip", {})
     derived_slot = slot_category or slot_key or slotbak_to_slot_category(jsonequip.get("slotbak"))
-    return {
+    item = {
         "itemID": item_id,
         "name": item_info.get("name_enus") or f"Item {item_id}",
         "slotKey": slot_key or derived_slot or "OTHER",
@@ -656,6 +677,10 @@ def build_item_from_wowhead_data(
         "isTier": is_tier,
         "isCrafted": is_crafted,
     }
+    override = MANUAL_ITEM_SOURCE_OVERRIDES.get(item_id)
+    if override:
+        item.update(override)
+    return item
 
 
 def extract_season_items_index(collections: list[dict]) -> dict[int, dict]:
@@ -759,7 +784,7 @@ def normalize_wowhead_source(source_markup: str, guide_id: int | None, guide_map
     guide_name = guide_info.get("name", "")
     guide_url = guide_info.get("url", "")
 
-    if "[skill=" in source_markup or source_text in {"Crafting", "Crafted"} or guide_id == 15942:
+    if "[skill=" in source_markup or source_text in CRAFTING_SOURCE_NAMES or guide_id == 15942:
         return {
             "sourceType": "crafted",
             "sourceName": "Crafted",

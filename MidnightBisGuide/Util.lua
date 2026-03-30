@@ -3,6 +3,8 @@ local util = addon.Util
 local concat = table.concat
 
 local KNOWN_PROFESSIONS = {
+    Crafted = true,
+    Crafting = true,
     Tailoring = true,
     Blacksmithing = true,
     Leatherworking = true,
@@ -16,6 +18,7 @@ local KNOWN_DUNGEONS = {
     ["Algeth'ar Academy"] = true,
     ["Magister's Terrace"] = true,
     ["Maisara Caverns"] = true,
+    ["Nexus Point Xenas"] = true,
     ["Nexus-Point Xenas"] = true,
     ["Pit of Saron"] = true,
     ["Seat of the Triumvirate"] = true,
@@ -25,6 +28,8 @@ local KNOWN_DUNGEONS = {
 
 local KNOWN_RAID_INSTANCES = {
     ["March on Quel'Danas"] = true,
+    Dreamdrift = true,
+    ["The Dreamdrift"] = true,
     ["The Dreamrift"] = true,
     ["Dreamrift"] = true,
     ["The Voidspire"] = true,
