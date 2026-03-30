@@ -43,6 +43,19 @@ local KNOWN_RAID_BOSSES = {
     ["Vorasius"] = "The Voidspire",
 }
 
+local function CanonicalSlotKey(slotKey)
+    if slotKey == "FINGER1" or slotKey == "FINGER2" or slotKey == "FINGER" then
+        return "FINGER"
+    end
+    if slotKey == "TRINKET1" or slotKey == "TRINKET2" or slotKey == "TRINKET" then
+        return "TRINKET"
+    end
+    if slotKey == "WEAPON_1H" then
+        return "WEAPON_1H"
+    end
+    return slotKey
+end
+
 local function GetLocalizationBucket(bucketName)
     if GetLocale() ~= "koKR" then
         return nil
@@ -370,7 +383,7 @@ function util.GetAcquisitionLabel(item)
             lines[#lines + 1] = "보스: " .. util.LocalizeToken(normalized.bossName, "bossNames")
         end
     elseif normalized.sourceType == "dungeon" then
-        lines[#lines + 1] = "던전: " .. util.LocalizeToken(normalized.sourceName or "미상", "sourceNames")
+        lines[#lines + 1] = "신화쐐기돌: " .. util.LocalizeToken(normalized.sourceName or "미상", "sourceNames")
         if normalized.bossName and normalized.bossName ~= "" then
             lines[#lines + 1] = "보스: " .. util.LocalizeToken(normalized.bossName, "bossNames")
         end
@@ -405,6 +418,59 @@ function util.GetAcquisitionLabel(item)
     end
 
     return concat(lines, "\n")
+end
+
+function util.NormalizeSourceData(item)
+    return NormalizeSourceData(item)
+end
+
+function util.GetCanonicalSlotKey(slotKey)
+    return CanonicalSlotKey(slotKey)
+end
+
+function util.ItemMatchesSlot(item, slotKey)
+    if not item or not slotKey then
+        return false
+    end
+
+    local itemSlot = CanonicalSlotKey(item.slotCategory or item.slotKey)
+    local targetSlot = CanonicalSlotKey(slotKey)
+
+    if targetSlot == "FINGER" then
+        return itemSlot == "FINGER"
+    end
+
+    if targetSlot == "TRINKET" then
+        return itemSlot == "TRINKET"
+    end
+
+    if targetSlot == "MAINHAND" then
+        return itemSlot == "MAINHAND" or itemSlot == "WEAPON_1H"
+    end
+
+    if targetSlot == "OFFHAND" then
+        return itemSlot == "OFFHAND" or itemSlot == "WEAPON_1H"
+    end
+
+    return itemSlot == targetSlot
+end
+
+function util.GetCatalogItemText(item)
+    if not item then
+        return "미설정"
+    end
+
+    local pieces = {
+        util.GetPlainItemName(item),
+    }
+
+    if item.stats and item.stats ~= "" then
+        pieces[#pieces + 1] = item.stats
+    elseif item.typeLabel and item.typeLabel ~= "" then
+        pieces[#pieces + 1] = item.typeLabel
+    end
+
+    return table.concat(pieces, " | ")
 end
 
 function util.Colorize(text, colorCode)

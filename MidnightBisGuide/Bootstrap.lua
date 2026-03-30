@@ -81,7 +81,7 @@ addon.Constants.SLOT_TO_INVENTORY = {
 }
 
 addon.Constants.SOURCE_TYPE_LABELS = {
-    dungeon = "던전",
+    dungeon = "신화쐐기돌",
     raid = "레이드",
     weekly_vault = "주간 금고",
     crafted = "제작",

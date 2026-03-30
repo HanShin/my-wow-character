@@ -141,25 +141,52 @@ function engine.BuildDefaultItemIndex()
     local index = {}
     local profiles = addon.Data.SeasonData.profiles or {}
 
+    local function AddItem(item)
+        if not item or not item.itemID then
+            return
+        end
+
+        local normalized = util.NormalizeItem(item)
+        if not index[item.itemID] then
+            index[item.itemID] = normalized
+            return
+        end
+
+        local existing = index[item.itemID]
+        for key, value in pairs(normalized) do
+            if existing[key] == nil or existing[key] == "" then
+                existing[key] = value
+            end
+        end
+    end
+
     for _, classProfiles in pairs(profiles) do
         for _, specData in pairs(classProfiles) do
             for _, profileKey in pairs(addon.Constants.PROFILE_KEYS) do
                 local slots = specData[profileKey] and specData[profileKey].slots or {}
                 for _, slotProfile in pairs(slots) do
-                    if slotProfile.best and slotProfile.best.itemID then
-                        index[slotProfile.best.itemID] = util.DeepCopy(slotProfile.best)
-                    end
+                    AddItem(slotProfile.best)
                     for _, alt in ipairs(slotProfile.alternatives or {}) do
-                        if alt and alt.itemID then
-                            index[alt.itemID] = util.DeepCopy(alt)
-                        end
+                        AddItem(alt)
                     end
                 end
             end
         end
     end
 
+    local seasonContent = addon.Data.SeasonContent or {}
+    for _, contentType in ipairs({ "dungeons", "raids" }) do
+        for _, collection in ipairs(seasonContent[contentType] or {}) do
+            for _, boss in ipairs(collection.bosses or {}) do
+                for _, item in ipairs(boss.items or {}) do
+                    AddItem(item)
+                end
+            end
+        end
+    end
+
     addon.State.itemIndex = index
+    addon.State.editorCatalog = nil
     return index
 end
 
@@ -168,6 +195,202 @@ function engine.GetItemIndex()
         return engine.BuildDefaultItemIndex()
     end
     return addon.State.itemIndex
+end
+
+local function SortByLabel(list)
+    table.sort(list, function(left, right)
+        return tostring(left.label or "") < tostring(right.label or "")
+    end)
+end
+
+function engine.BuildEditorCatalog()
+    local catalog = {
+        bySourceType = {
+            dungeon = {},
+            raid = {},
+            crafted = {},
+            weekly_vault = {},
+            catalyst = {},
+            other = {},
+        },
+    }
+
+    local function EnsureGroup(sourceType, label)
+        local groups = catalog.bySourceType[sourceType]
+        for _, group in ipairs(groups) do
+            if group.label == label then
+                return group
+            end
+        end
+
+        local group = {
+            label = label,
+            bosses = {},
+        }
+        groups[#groups + 1] = group
+        return group
+    end
+
+    local function EnsureBoss(group, label)
+        for _, boss in ipairs(group.bosses) do
+            if boss.label == label then
+                return boss
+            end
+        end
+
+        local boss = {
+            label = label,
+            items = {},
+        }
+        group.bosses[#group.bosses + 1] = boss
+        return boss
+    end
+
+    local function AppendItem(sourceType, groupLabel, bossLabel, item)
+        if not item or not item.itemID then
+            return
+        end
+
+        local group = EnsureGroup(sourceType, groupLabel or "기타")
+        local boss = EnsureBoss(group, bossLabel or "전체")
+        util.AppendIfMissing(boss.items, util.NormalizeItem(item), "itemID")
+    end
+
+    local seasonContent = addon.Data.SeasonContent or {}
+    for _, contentType in ipairs({ "dungeons", "raids" }) do
+        for _, collection in ipairs(seasonContent[contentType] or {}) do
+            local sourceType = contentType == "raids" and "raid" or "dungeon"
+            for _, boss in ipairs(collection.bosses or {}) do
+                for _, item in ipairs(boss.items or {}) do
+                    AppendItem(sourceType, collection.sourceName, boss.name, item)
+                end
+            end
+        end
+    end
+
+    for _, item in pairs(engine.GetItemIndex()) do
+        local normalized = util.NormalizeSourceData(item)
+        local sourceType = normalized.sourceType or item.sourceType or "other"
+        if sourceType ~= "dungeon" and sourceType ~= "raid" then
+            AppendItem(
+                sourceType,
+                normalized.sourceName or item.sourceName or addon.Constants.SOURCE_TYPE_LABELS[sourceType] or "기타",
+                normalized.bossName or item.bossName or "전체",
+                item
+            )
+        end
+    end
+
+    for _, groups in pairs(catalog.bySourceType) do
+        for _, group in ipairs(groups) do
+            for _, boss in ipairs(group.bosses) do
+                table.sort(boss.items, function(left, right)
+                    return util.GetPlainItemName(left) < util.GetPlainItemName(right)
+                end)
+            end
+            SortByLabel(group.bosses)
+        end
+        SortByLabel(groups)
+    end
+
+    addon.State.editorCatalog = catalog
+    return catalog
+end
+
+function engine.GetEditorCatalog()
+    if not addon.State.editorCatalog then
+        return engine.BuildEditorCatalog()
+    end
+    return addon.State.editorCatalog
+end
+
+function engine.GetCatalogSourceTypes(slotKey)
+    local catalog = engine.GetEditorCatalog()
+    local sourceTypes = {}
+
+    for _, sourceType in ipairs(addon.Constants.SOURCE_TYPE_ORDER) do
+        local groups = catalog.bySourceType[sourceType] or {}
+        for _, group in ipairs(groups) do
+            local hasMatch = false
+            for _, boss in ipairs(group.bosses or {}) do
+                for _, item in ipairs(boss.items or {}) do
+                    if util.ItemMatchesSlot(item, slotKey) then
+                        hasMatch = true
+                        break
+                    end
+                end
+                if hasMatch then
+                    break
+                end
+            end
+
+            if hasMatch then
+                sourceTypes[#sourceTypes + 1] = sourceType
+                break
+            end
+        end
+    end
+
+    return sourceTypes
+end
+
+function engine.GetCatalogGroups(sourceType, slotKey)
+    local groups = {}
+    local catalogGroups = engine.GetEditorCatalog().bySourceType[sourceType] or {}
+
+    for _, group in ipairs(catalogGroups) do
+        local filteredBosses = {}
+        for _, boss in ipairs(group.bosses or {}) do
+            local filteredItems = {}
+            for _, item in ipairs(boss.items or {}) do
+                if util.ItemMatchesSlot(item, slotKey) then
+                    filteredItems[#filteredItems + 1] = util.DeepCopy(item)
+                end
+            end
+            if #filteredItems > 0 then
+                filteredBosses[#filteredBosses + 1] = {
+                    label = boss.label,
+                    items = filteredItems,
+                }
+            end
+        end
+
+        if #filteredBosses > 0 then
+            groups[#groups + 1] = {
+                label = group.label,
+                bosses = filteredBosses,
+            }
+        end
+    end
+
+    return groups
+end
+
+function engine.BuildCustomSlotProfile(slotKey, bestItem, alt1Item, alt2Item)
+    local result = {
+        best = nil,
+        alternatives = {},
+    }
+
+    local function CopyIntoSlot(item)
+        if not item then
+            return nil
+        end
+
+        local copied = util.DeepCopy(item)
+        copied.slotKey = slotKey
+        return util.NormalizeItem(copied)
+    end
+
+    result.best = CopyIntoSlot(bestItem)
+    if alt1Item then
+        result.alternatives[#result.alternatives + 1] = CopyIntoSlot(alt1Item)
+    end
+    if alt2Item then
+        result.alternatives[#result.alternatives + 1] = CopyIntoSlot(alt2Item)
+    end
+
+    return util.NormalizeSlotProfile(result)
 end
 
 function engine.GetCharacterCustomRoot(specID, profileKey)
