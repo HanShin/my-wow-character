@@ -733,7 +733,7 @@ function ui.Initialize()
     frame:SetScript("OnHide", function(self)
         SaveWindowPosition(self)
     end)
-    frame.TitleText:SetText("Midnight BiS Guide")
+    frame.TitleText:SetText("미드나이트 BiS 가이드")
 
     ApplyWindowPosition(frame)
 

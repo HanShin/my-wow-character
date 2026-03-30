@@ -48,6 +48,114 @@ local KNOWN_RAID_BOSSES = {
     ["Vorasius"] = "The Voidspire",
 }
 
+local STAT_TOKEN_REPLACEMENTS = {
+    { "Critical Strike", "치명타" },
+    { "Intellect", "지능" },
+    { "Strength", "힘" },
+    { "Agility", "민첩" },
+    { "Mastery", "특화" },
+    { "Haste", "가속" },
+    { "Crit", "치명타" },
+    { "Vers", "유연성" },
+    { "Str", "힘" },
+    { "Int", "지능" },
+    { "Agi", "민첩" },
+    { "Bow", "활" },
+}
+
+local TYPE_LABEL_REPLACEMENTS = {
+    { "Curio Tier Set Token", "티어 세트 토큰" },
+    { "Tier Set Hands Armor", "티어 세트 손 방어구" },
+    { "Tier Set Head Armor", "티어 세트 머리 방어구" },
+    { "Tier Set Legs Armor", "티어 세트 다리 방어구" },
+    { "Tier Set Shoulder Armor", "티어 세트 어깨 방어구" },
+    { "Two-Hand: Staff", "양손: 지팡이" },
+    { "Off-Hand: Weapon", "보조장비: 무기" },
+    { "Cloth Armor:", "천 방어구:" },
+    { "Leather Armor:", "가죽 방어구:" },
+    { "Mail Armor:", "사슬 방어구:" },
+    { "Plate Armor:", "판금 방어구:" },
+    { "Fist Weapon", "장착 무기" },
+    { "Warglaives", "전투검" },
+    { "Warglaive", "전투검" },
+    { "Crossbow", "석궁" },
+    { "Shoulders", "어깨" },
+    { "Shoulder", "어깨" },
+    { "Trinkets", "장신구" },
+    { "Trinket", "장신구" },
+    { "Wrists", "손목" },
+    { "Wrist", "손목" },
+    { "Finger", "반지" },
+    { "Ring", "반지" },
+    { "Shield", "방패" },
+    { "Dagger", "단검" },
+    { "Polearm", "장창" },
+    { "Recipe", "도안" },
+    { "Weapon", "무기" },
+    { "Off-Hand", "보조장비" },
+    { "Two-Hand:", "양손:" },
+    { "Staff", "지팡이" },
+    { "Sword", "검" },
+    { "Mace", "둔기" },
+    { "Axe", "도끼" },
+    { "Bow", "활" },
+    { "Gun", "총" },
+    { "Wand", "마법봉" },
+    { "Chest", "가슴" },
+    { "Hands", "손" },
+    { "Head", "머리" },
+    { "Helm", "투구" },
+    { "Legs", "다리" },
+    { "Waist", "허리" },
+    { "Feet", "발" },
+    { "Boots", "신발" },
+    { "Back", "등" },
+    { "Neck", "목걸이" },
+    { "Cloth", "천" },
+    { "Leather", "가죽" },
+    { "Mail", "사슬" },
+    { "Plate", "판금" },
+    { "Tier Set", "티어 세트" },
+    { "Agility", "민첩" },
+    { "1H", "한손" },
+    { "2H", "양손" },
+}
+
+local function EscapePattern(value)
+    return value:gsub("([%%%^%$%(%)%.%[%]%*%+%-%?])", "%%%1")
+end
+
+local function ReplaceWholeTokens(text, replacements)
+    if type(text) ~= "string" or text == "" then
+        return text
+    end
+
+    for _, pair in ipairs(replacements) do
+        local source, replacement = pair[1], pair[2]
+        local prefix = source:match("^%w") and "%f[%w]" or ""
+        local suffix = source:match("%w$") and "%f[%W]" or ""
+        text = text:gsub(prefix .. EscapePattern(source) .. suffix, replacement)
+    end
+
+    return text
+end
+
+local function LocalizeStatString(text)
+    return ReplaceWholeTokens(text, STAT_TOKEN_REPLACEMENTS)
+end
+
+local function LocalizeTypeLabel(text)
+    return ReplaceWholeTokens(text, TYPE_LABEL_REPLACEMENTS)
+end
+
+local function BuildPendingItemLabel(itemID)
+    if not itemID then
+        return "아이템 정보 로딩 중"
+    end
+
+    return ("아이템 정보 로딩 중 (#%d)"):format(itemID)
+end
+
 local function CanonicalSlotKey(slotKey)
     if slotKey == "FINGER1" or slotKey == "FINGER2" or slotKey == "FINGER" then
         return "FINGER"
@@ -296,6 +404,10 @@ function util.GetItemLabel(item)
         end
     end
 
+    if GetLocale() == "koKR" and itemID then
+        return BuildPendingItemLabel(itemID)
+    end
+
     if type(item) == "table" and item.name and item.name ~= "" then
         return item.name
     end
@@ -318,6 +430,10 @@ function util.GetPlainItemName(item)
         if itemName and itemName ~= "" then
             return itemName
         end
+    end
+
+    if GetLocale() == "koKR" and itemID then
+        return BuildPendingItemLabel(itemID)
     end
 
     if type(item) == "table" and item.name and item.name ~= "" then
@@ -470,9 +586,9 @@ function util.GetCatalogItemText(item)
     }
 
     if item.stats and item.stats ~= "" then
-        pieces[#pieces + 1] = item.stats
+        pieces[#pieces + 1] = LocalizeStatString(item.stats)
     elseif item.typeLabel and item.typeLabel ~= "" then
-        pieces[#pieces + 1] = item.typeLabel
+        pieces[#pieces + 1] = LocalizeTypeLabel(item.typeLabel)
     end
 
     return table.concat(pieces, " | ")
