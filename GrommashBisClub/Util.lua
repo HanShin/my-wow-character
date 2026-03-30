@@ -192,17 +192,47 @@ local function RequestItemData(itemID)
     C_Item.RequestLoadItemDataByID(itemID)
 end
 
-local function ResolveItemInfo(itemID)
+local function CountBonusIDs(bonusIDs)
+    if type(bonusIDs) ~= "string" or bonusIDs == "" then
+        return 0
+    end
+
+    local count = 0
+    for _ in bonusIDs:gmatch("[^:]+") do
+        count = count + 1
+    end
+    return count
+end
+
+local function BuildItemQuery(item)
+    local itemID = type(item) == "table" and item.itemID or tonumber(item)
     if not itemID then
         return nil, nil
     end
 
-    local itemName, itemLink = GetItemInfo(itemID)
+    if type(item) == "table" and type(item.bonusIDs) == "string" and item.bonusIDs ~= "" then
+        local linkLevel = UnitLevel and UnitLevel("player") or 80
+        local bonusCount = CountBonusIDs(item.bonusIDs)
+        if bonusCount > 0 then
+            return itemID, ("item:%d::::::::%d::::%d:%s"):format(itemID, linkLevel, bonusCount, item.bonusIDs)
+        end
+    end
+
+    return itemID, itemID
+end
+
+local function ResolveItemInfo(item)
+    local itemID, itemQuery = BuildItemQuery(item)
+    if not itemID or not itemQuery then
+        return nil, nil, nil
+    end
+
+    local itemName, itemLink = GetItemInfo(itemQuery)
     if not itemName then
         RequestItemData(itemID)
     end
 
-    return itemName, itemLink
+    return itemID, itemName, itemLink
 end
 
 local function ParseStructuredSourceName(sourceName)
@@ -394,7 +424,7 @@ function util.GetItemLabel(item)
 
     local itemID = type(item) == "table" and item.itemID or tonumber(item)
     if itemID then
-        local itemName, itemLink = ResolveItemInfo(itemID)
+        local _, itemName, itemLink = ResolveItemInfo(item)
         if itemLink then
             return itemLink
         end
@@ -426,7 +456,7 @@ function util.GetPlainItemName(item)
 
     local itemID = type(item) == "table" and item.itemID or tonumber(item)
     if itemID then
-        local itemName = ResolveItemInfo(itemID)
+        local _, itemName = ResolveItemInfo(item)
         if itemName and itemName ~= "" then
             return itemName
         end
@@ -452,12 +482,7 @@ function util.GetItemLink(item)
         return nil
     end
 
-    local itemID = type(item) == "table" and item.itemID or tonumber(item)
-    if not itemID then
-        return nil
-    end
-
-    local _, itemLink = ResolveItemInfo(itemID)
+    local _, _, itemLink = ResolveItemInfo(item)
     return itemLink
 end
 
@@ -618,6 +643,7 @@ function util.NormalizeItem(item)
     result.sourceType = result.sourceType or "other"
     result.sourceName = util.Trim(result.sourceName) or ""
     result.bossName = util.Trim(result.bossName) or nil
+    result.bonusIDs = util.Trim(result.bonusIDs) or nil
     result.notes = util.Trim(result.notes) or nil
     result.name = util.Trim(result.name) or ("아이템 #" .. tostring(result.itemID or "?"))
     return result

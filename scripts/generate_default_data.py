@@ -646,6 +646,20 @@ def build_stats_label(item_info: dict) -> str | None:
     return None
 
 
+def parse_wowhead_item_reference(markup: str, *, allow_icon_badge: bool = False) -> tuple[int | None, str | None]:
+    patterns = [r"\[item=(\d+)(?:[^\]]*?\bbonus=([0-9:]+))?[^\]]*\]"]
+    if allow_icon_badge:
+        patterns.append(r"\[icon-badge=(\d+)(?:[^\]]*?\bbonus=([0-9:]+))?[^\]]*\]")
+
+    for pattern in patterns:
+        match = re.search(pattern, markup)
+        if match:
+            item_id, bonus_ids = match.groups()
+            return int(item_id), bonus_ids or None
+
+    return None, None
+
+
 def build_item_from_wowhead_data(
     item_id: int,
     item_info: dict,
@@ -658,6 +672,7 @@ def build_item_from_wowhead_data(
     notes: str | None = None,
     type_label: str | None = None,
     stats: str | None = None,
+    bonus_ids: str | None = None,
     is_tier: bool = False,
     is_crafted: bool = False,
 ) -> dict:
@@ -673,6 +688,7 @@ def build_item_from_wowhead_data(
         "bossName": boss_name,
         "typeLabel": type_label,
         "stats": stats or build_stats_label(item_info),
+        "bonusIDs": bonus_ids,
         "notes": notes,
         "isTier": is_tier,
         "isCrafted": is_crafted,
@@ -719,11 +735,11 @@ def parse_dungeon_loot_tables(page_html: str, source_name: str) -> list[dict]:
 
             type_label = strip_tags(cells[0])
             slot_category = infer_slot_category(type_label)
-            item_match = re.search(r'data-wowhead="item=(\d+)[^"]*"[^>]*>([^<]+)</span>', cells[1], re.S)
+            item_match = re.search(r'data-wowhead="item=(\d+)(?:&(?:amp;)?bonus=([0-9:]+))?[^"]*"[^>]*>([^<]+)</span>', cells[1], re.S)
             if not item_match:
                 continue
 
-            item_id, item_name = item_match.groups()
+            item_id, bonus_ids, item_name = item_match.groups()
             items.append(
                 {
                     "itemID": int(item_id),
@@ -735,6 +751,7 @@ def parse_dungeon_loot_tables(page_html: str, source_name: str) -> list[dict]:
                     "bossName": boss_name,
                     "typeLabel": type_label,
                     "stats": strip_tags(cells[2]) or None,
+                    "bonusIDs": bonus_ids or None,
                     "isTier": False,
                     "isCrafted": False,
                 }
@@ -919,10 +936,9 @@ def parse_wowhead_overall_bis(page_html: str) -> dict:
         item_cell = cells[1]
         source_cell = cells[2]
 
-        item_match = re.search(r"\[item=(\d+)", item_cell)
-        if not item_match:
+        item_id, bonus_ids = parse_wowhead_item_reference(item_cell)
+        if not item_id:
             continue
-        item_id = int(item_match.group(1))
 
         guide_match = re.search(r"\[url guide=(\d+)\](.*?)\[/url\]", source_cell, re.S)
         guide_id = int(guide_match.group(1)) if guide_match else None
@@ -937,6 +953,7 @@ def parse_wowhead_overall_bis(page_html: str) -> dict:
             source_name=source_meta["sourceName"],
             boss_name=source_meta["bossName"],
             notes=source_meta["notes"],
+            bonus_ids=bonus_ids,
             is_tier=source_meta["sourceName"] == "Tier Set",
             is_crafted=source_meta["sourceType"] == "crafted",
         )
@@ -987,14 +1004,19 @@ def parse_wowhead_mythic_plus_items(page_html: str, season_item_index: dict[int,
 
     items = []
     seen = set()
-    for item_id_text in re.findall(r"\[(?:icon-badge|item)=(\d+)", match.group(1)):
-        item_id = int(item_id_text)
+    for tag_match in re.finditer(r"\[(?:icon-badge|item)=[^\]]+\]", match.group(1)):
+        item_id, bonus_ids = parse_wowhead_item_reference(tag_match.group(0), allow_icon_badge=True)
+        if not item_id:
+            continue
         if item_id in seen:
             continue
         seen.add(item_id)
 
         if item_id in season_item_index:
-            items.append(dict(season_item_index[item_id]))
+            item = dict(season_item_index[item_id])
+            if bonus_ids:
+                item["bonusIDs"] = bonus_ids
+            items.append(item)
             continue
 
         item_info = item_data.get(str(item_id), {})
@@ -1004,6 +1026,7 @@ def parse_wowhead_mythic_plus_items(page_html: str, season_item_index: dict[int,
                 item_info,
                 source_type="dungeon",
                 source_name="Mythic+",
+                bonus_ids=bonus_ids,
             )
         )
 
@@ -1021,8 +1044,10 @@ def parse_wowhead_crafted_items(page_html: str) -> list[dict]:
 
     items = []
     seen = set()
-    for item_id_text in re.findall(r"\[item=(\d+)", match.group(1)):
-        item_id = int(item_id_text)
+    for tag_match in re.finditer(r"\[item=[^\]]+\]", match.group(1)):
+        item_id, bonus_ids = parse_wowhead_item_reference(tag_match.group(0))
+        if not item_id:
+            continue
         if item_id in seen:
             continue
 
@@ -1040,6 +1065,7 @@ def parse_wowhead_crafted_items(page_html: str) -> list[dict]:
                 slot_category=slot_category,
                 source_type="crafted",
                 source_name="Crafted",
+                bonus_ids=bonus_ids,
                 is_crafted=True,
             )
         )
@@ -1342,14 +1368,12 @@ def parse_wowhead_raid_boss_loot(page_html: str, source_name: str, boss_name: st
                     current_headers = plain_cells
                     continue
 
-                item_match = re.search(r"\[item=(\d+)", cells[0])
-                if not item_match:
+                item_id, bonus_ids = parse_wowhead_item_reference(cells[0])
+                if not item_id:
                     if plain_cells[0]:
                         current_group = plain_cells[0]
                         current_headers = []
                     continue
-
-                item_id = int(item_match.group(1))
                 if item_id in seen:
                     continue
                 seen.add(item_id)
@@ -1390,6 +1414,7 @@ def parse_wowhead_raid_boss_loot(page_html: str, source_name: str, boss_name: st
                     boss_name=boss_name,
                     type_label=type_label,
                     stats=stats,
+                    bonus_ids=bonus_ids,
                     is_tier=is_tier,
                 )
                 items.append(item)
@@ -1412,6 +1437,7 @@ def render_item(item: dict | None, indent: str) -> str:
         "bossName",
         "typeLabel",
         "stats",
+        "bonusIDs",
         "notes",
         "isTier",
         "isCrafted",
