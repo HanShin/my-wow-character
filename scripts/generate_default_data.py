@@ -60,30 +60,44 @@ SPEC_ENTRIES = [
 
 SLOT_MAP = {
     "Head": "HEAD",
+    "Helm": "HEAD",
     "Neck": "NECK",
     "Shoulder": "SHOULDER",
     "Shoulders": "SHOULDER",
+    "Cape": "BACK",
     "Cloak": "BACK",
     "Back": "BACK",
     "Chest": "CHEST",
     "Wrists": "WRIST",
     "Wrist": "WRIST",
+    "Bracer": "WRIST",
+    "Bracers": "WRIST",
     "Hands": "HANDS",
     "Gloves": "HANDS",
     "Belt": "WAIST",
     "Waist": "WAIST",
     "Legs": "LEGS",
     "Feet": "FEET",
+    "Boots": "FEET",
+    "Ring": "FINGER",
     "Ring #1": "FINGER1",
     "Ring #2": "FINGER2",
+    "Trinket": "TRINKET",
+    "Trinkets": "TRINKET",
     "Trinket #1": "TRINKET1",
     "Trinket #2": "TRINKET2",
     "Weapon": "MAINHAND",
+    "1h Weapon": "MAINHAND",
+    "1H Weapon": "MAINHAND",
+    "1-Hand Weapon": "MAINHAND",
+    "One-Hand Weapon": "MAINHAND",
     "Weapon #1": "MAINHAND",
     "Weapon #2": "OFFHAND",
     "Main Hand": "MAINHAND",
+    "Mainhand": "MAINHAND",
     "Off-Hand": "OFFHAND",
     "Off Hand": "OFFHAND",
+    "Offhand": "OFFHAND",
 }
 
 
@@ -257,6 +271,9 @@ SPEC_PRIMARY_STATS = {
     577: "agi",
     581: "agi",
 }
+
+
+DUAL_WIELD_SPEC_IDS = {72, 251, 259, 260, 261, 263, 269}
 
 
 SLOTBAK_MAP = {
@@ -542,7 +559,7 @@ def infer_slot_category(type_label: str) -> str | None:
         return "HEAD"
     if "shoulder" in lowered:
         return "SHOULDER"
-    if "cloak" in lowered or "back" in lowered:
+    if "cloak" in lowered or "cape" in lowered or "back" in lowered:
         return "BACK"
     if "chest" in lowered:
         return "CHEST"
@@ -862,20 +879,20 @@ def parse_wowhead_overall_bis(page_html: str) -> dict:
             continue
 
         slot_label = strip_wowhead_markup(cells[0])
-        base_slot = SLOT_MAP.get(slot_label)
+        base_slot = SLOT_MAP.get(slot_label) or infer_slot_category(slot_label)
         if not base_slot:
             continue
 
-        slot_counts[slot_label] = slot_counts.get(slot_label, 0) + 1
-        if slot_label == "Ring":
-            slot_key = "FINGER1" if slot_counts[slot_label] == 1 else "FINGER2"
-        elif slot_label == "Trinket":
-            slot_key = "TRINKET1" if slot_counts[slot_label] == 1 else "TRINKET2"
+        slot_counts[base_slot] = slot_counts.get(base_slot, 0) + 1
+        if base_slot == "FINGER":
+            slot_key = "FINGER1" if slot_counts[base_slot] == 1 else "FINGER2"
+        elif base_slot == "TRINKET":
+            slot_key = "TRINKET1" if slot_counts[base_slot] == 1 else "TRINKET2"
         else:
             slot_key = base_slot
 
-        item_cell = cells[-2]
-        source_cell = cells[-1]
+        item_cell = cells[1]
+        source_cell = cells[2]
 
         item_match = re.search(r"\[item=(\d+)", item_cell)
         if not item_match:
@@ -887,18 +904,17 @@ def parse_wowhead_overall_bis(page_html: str) -> dict:
         source_meta = normalize_wowhead_source(source_cell, guide_id, guide_map)
 
         item_info = item_data.get(str(item_id), {})
-        item_name = item_info.get("name_enus") or strip_wowhead_markup(cells[1]) or f"Item {item_id}"
-        slots[slot_key] = {
-            "itemID": item_id,
-            "name": item_name,
-            "slotKey": slot_key,
-            "sourceType": source_meta["sourceType"],
-            "sourceName": source_meta["sourceName"],
-            "bossName": source_meta["bossName"],
-            "notes": source_meta["notes"],
-            "isTier": source_meta["sourceName"] == "Tier Set",
-            "isCrafted": source_meta["sourceType"] == "crafted",
-        }
+        slots[slot_key] = build_item_from_wowhead_data(
+            item_id,
+            item_info,
+            slot_key=slot_key,
+            source_type=source_meta["sourceType"],
+            source_name=source_meta["sourceName"],
+            boss_name=source_meta["bossName"],
+            notes=source_meta["notes"],
+            is_tier=source_meta["sourceName"] == "Tier Set",
+            is_crafted=source_meta["sourceType"] == "crafted",
+        )
 
     return slots
 
@@ -1205,6 +1221,42 @@ def merge_profiles(
     }
 
 
+def mirror_slot_profile(slot_profile: dict, slot_key: str) -> dict:
+    mirrored = {
+        "best": dict(slot_profile.get("best") or {}) if slot_profile.get("best") else None,
+        "alternatives": [dict(item) for item in slot_profile.get("alternatives", [])],
+    }
+
+    if mirrored["best"]:
+        mirrored["best"]["slotKey"] = slot_key
+
+    for item in mirrored["alternatives"]:
+        item["slotKey"] = slot_key
+
+    return mirrored
+
+
+def fill_dual_wield_offhand(spec_id: int, built_profiles: dict) -> None:
+    if spec_id not in DUAL_WIELD_SPEC_IDS:
+        return
+
+    for profile_key in ("withRaid", "noRaid"):
+        slots = built_profiles[profile_key]["slots"]
+        if slots.get("OFFHAND"):
+            continue
+
+        mainhand = slots.get("MAINHAND")
+        best = (mainhand or {}).get("best")
+        if not best:
+            continue
+
+        slot_category = best.get("slotCategory") or best.get("slotKey")
+        if slot_category != "WEAPON_1H":
+            continue
+
+        slots["OFFHAND"] = mirror_slot_profile(mainhand, "OFFHAND")
+
+
 def parse_wowhead_raid_boss_list(page_html: str) -> list[dict]:
     guide_map = extract_wowhead_data(page_html, 100)
     bosses = []
@@ -1489,6 +1541,7 @@ def main() -> None:
             stat_priority=stat_priority,
             season_item_index=season_item_index,
         )
+        fill_dual_wield_offhand(entry["specID"], built)
 
         per_class = profiles.setdefault(entry["classFile"], {})
         per_class[entry["specID"]] = {

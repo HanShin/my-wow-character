@@ -2,7 +2,7 @@ local addon = MidnightBisGuide
 
 addon.Data.SeasonContent = {
     seasonID = "midnight-season-1",
-    generatedAt = "2026-03-30T07:15:57Z",
+    generatedAt = "2026-03-30T07:46:58Z",
     dungeons = {
         {
             sourceName = "Magister's Terrace",

@@ -57,6 +57,10 @@ local function GetCurrentItemText(rowData)
     return "|cff8f8f8f장착 안 됨|r"
 end
 
+local ROW_WIDTH = 830
+local ROW_HEIGHT = 144
+local ROW_SPACING = 148
+
 local function ApplyWindowPosition(frame)
     local windowState = engine.GetWindowState()
     frame:ClearAllPoints()
@@ -557,8 +561,8 @@ end
 
 local function CreateRow(parent, index)
     local row = CreateBackdropFrame(parent)
-    row:SetSize(830, 132)
-    row:SetPoint("TOPLEFT", 6, -6 - ((index - 1) * 136))
+    row:SetSize(ROW_WIDTH, ROW_HEIGHT)
+    row:SetPoint("TOPLEFT", 6, -6 - ((index - 1) * ROW_SPACING))
 
     row.slot = row:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
     row.slot:SetPoint("TOPLEFT", 10, -10)
@@ -579,35 +583,39 @@ local function CreateRow(parent, index)
     row.targetLabel = row:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     row.targetLabel:SetPoint("TOPLEFT", 350, -10)
     row.targetLabel:SetText("목표")
-    row.target = CreateItemLinkButton(row, 220, 24)
+    row.target = CreateItemLinkButton(row, 170, 24)
     row.target:SetPoint("TOPLEFT", row.targetLabel, "BOTTOMLEFT", 0, -2)
 
     row.sourceLabel = row:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    row.sourceLabel:SetPoint("TOPLEFT", 120, -48)
+    row.sourceLabel:SetPoint("TOPLEFT", 350, -48)
     row.sourceLabel:SetText("획득처")
     row.source = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     row.source:SetPoint("TOPLEFT", row.sourceLabel, "BOTTOMLEFT", 0, -2)
-    SetMultiline(row.source, 330)
+    SetMultiline(row.source, 395)
 
     row.altLabel = row:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    row.altLabel:SetPoint("TOPLEFT", 480, -48)
+    row.altLabel:SetPoint("TOPLEFT", 528, -10)
     row.altLabel:SetText("대체안")
     row.altButtons = {}
     for altIndex = 1, 2 do
-        row.altButtons[altIndex] = CreateItemLinkButton(row, 300, 20)
-        row.altButtons[altIndex]:SetPoint("TOPLEFT", row.altLabel, "BOTTOMLEFT", 0, -2 - ((altIndex - 1) * 22))
+        row.altButtons[altIndex] = CreateItemLinkButton(row, 116, 20)
+        if altIndex == 1 then
+            row.altButtons[altIndex]:SetPoint("TOPLEFT", row.altLabel, "BOTTOMLEFT", 0, -2)
+        else
+            row.altButtons[altIndex]:SetPoint("LEFT", row.altButtons[altIndex - 1], "RIGHT", 6, 0)
+        end
     end
     row.altEmpty = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     row.altEmpty:SetPoint("TOPLEFT", row.altLabel, "BOTTOMLEFT", 0, -2)
     row.altEmpty:SetText("대체안 없음")
 
     row.edit = CreateFrame("Button", nil, row, "UIPanelButtonTemplate")
-    row.edit:SetSize(62, 22)
+    row.edit:SetSize(52, 22)
     row.edit:SetPoint("TOPRIGHT", -10, -12)
     row.edit:SetText("편집")
 
     row.reset = CreateFrame("Button", nil, row, "UIPanelButtonTemplate")
-    row.reset:SetSize(62, 22)
+    row.reset:SetSize(52, 22)
     row.reset:SetPoint("TOPRIGHT", -10, -40)
     row.reset:SetText("복원")
 
@@ -744,7 +752,7 @@ function ui.Initialize()
     scrollFrame:SetPoint("BOTTOMRIGHT", -30, 12)
 
     local content = CreateFrame("Frame", nil, scrollFrame)
-    content:SetSize(840, 2350)
+    content:SetSize(840, (#addon.Constants.SLOT_ORDER * ROW_SPACING) + 24)
     scrollFrame:SetScrollChild(content)
 
     for index, _ in ipairs(addon.Constants.SLOT_ORDER) do

@@ -197,6 +197,83 @@ function engine.GetItemIndex()
     return addon.State.itemIndex
 end
 
+local function CopySlotProfileToKey(slotProfile, slotKey)
+    local copied = util.NormalizeSlotProfile(slotProfile)
+    if not copied then
+        return nil
+    end
+
+    if copied.best then
+        copied.best.slotKey = slotKey
+    end
+
+    for _, alt in ipairs(copied.alternatives or {}) do
+        alt.slotKey = slotKey
+    end
+
+    return copied
+end
+
+local function GetIndexedItem(item)
+    if not item or not item.itemID then
+        return item
+    end
+
+    local indexed = engine.GetItemIndex()[item.itemID]
+    if not indexed then
+        return item
+    end
+
+    local merged = util.DeepCopy(indexed)
+    for key, value in pairs(item) do
+        if merged[key] == nil or merged[key] == "" then
+            merged[key] = value
+        end
+    end
+
+    return merged
+end
+
+local function GetDefaultSlotProfile(specID, profileKey, slotKey)
+    local specData = engine.GetSpecData(specID)
+    if not specData or not specData[profileKey] then
+        return nil
+    end
+
+    local slots = specData[profileKey].slots or {}
+    local defaultSlot = slots[slotKey]
+    if defaultSlot then
+        return util.NormalizeSlotProfile(defaultSlot)
+    end
+
+    if slotKey ~= "OFFHAND" then
+        return nil
+    end
+
+    local oneHandSlot = slots["WEAPON_1H"]
+    if oneHandSlot and oneHandSlot.best then
+        return CopySlotProfileToKey(oneHandSlot, "OFFHAND")
+    end
+
+    local currentOffhand = GetInventoryItemID("player", addon.Constants.SLOT_TO_INVENTORY.OFFHAND)
+    if not currentOffhand then
+        return nil
+    end
+
+    local mainhand = slots["MAINHAND"]
+    if not mainhand or not mainhand.best then
+        return nil
+    end
+
+    local bestItem = GetIndexedItem(mainhand.best)
+    local slotToken = bestItem and (bestItem.slotCategory or bestItem.slotKey)
+    if slotToken == "WEAPON_1H" or slotToken == "MAINHAND" then
+        return CopySlotProfileToKey(mainhand, "OFFHAND")
+    end
+
+    return nil
+end
+
 local function SortByLabel(list)
     table.sort(list, function(left, right)
         return tostring(left.label or "") < tostring(right.label or "")
@@ -495,8 +572,7 @@ function engine.NormalizeCustomSlot(bestItemID, alt1ItemID, alt2ItemID, sourceTy
 end
 
 function engine.SaveSlotOverride(specID, profileKey, slotKey, customProfile)
-    local specData = engine.GetSpecData(specID)
-    local defaultProfile = specData and specData[profileKey] and specData[profileKey].slots[slotKey] or nil
+    local defaultProfile = GetDefaultSlotProfile(specID, profileKey, slotKey)
 
     if defaultProfile and util.TableEquals(customProfile, util.NormalizeSlotProfile(defaultProfile)) then
         engine.ResetSlotOverride(specID, profileKey, slotKey)
@@ -507,26 +583,19 @@ function engine.SaveSlotOverride(specID, profileKey, slotKey, customProfile)
 end
 
 function engine.GetEffectiveSlotProfile(specID, profileKey, slotKey)
-    local specData = engine.GetSpecData(specID)
-    if not specData or not specData[profileKey] then
-        return nil
-    end
-
-    local defaultSlot = specData[profileKey].slots[slotKey]
     local customSlot = GetCustomSlotOverride(specID, profileKey, slotKey)
     if customSlot then
         return util.NormalizeSlotProfile(customSlot)
     end
 
-    return util.NormalizeSlotProfile(defaultSlot)
+    return GetDefaultSlotProfile(specID, profileKey, slotKey)
 end
 
 function engine.GetDefaultCandidates(specID, profileKey, slotKey)
     local candidates = {}
 
     local function AppendCandidates(fromProfileKey)
-        local specData = engine.GetSpecData(specID)
-        local slotProfile = specData and specData[fromProfileKey] and specData[fromProfileKey].slots[slotKey] or nil
+        local slotProfile = GetDefaultSlotProfile(specID, fromProfileKey, slotKey)
         if not slotProfile then
             return
         end
