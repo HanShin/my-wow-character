@@ -1,0 +1,15 @@
+## Interface: 120001
+## Title: Midnight BiS Guide
+## Notes: Compare current gear against current-season BiS targets and show where to farm upgrades.
+## Author: OpenAI Codex
+## Version: 0.1.0
+## SavedVariables: MidnightBisGuideDB
+
+Bootstrap.lua
+Data/SeasonMeta.lua
+Data/SpecRegistry.lua
+Data/SeasonData.lua
+Util.lua
+Engine.lua
+UI.lua
+Core.lua
