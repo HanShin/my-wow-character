@@ -4,7 +4,7 @@ MidnightBisGuide = MidnightBisGuide or {}
 
 local addon = MidnightBisGuide
 
-addon.ADDON_NAME = addonName or "MidnightBisGuide"
+addon.ADDON_NAME = addonName or "GrommashBisClub"
 addon.VERSION = "0.1.0"
 addon.DB_NAME = "MidnightBisGuideDB"
 

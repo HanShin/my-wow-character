@@ -22,7 +22,7 @@ Retail Midnight 현재 시즌용 장비 점검 애드온입니다.
 설치:
 
 - `GrommashBisClub/` 폴더를 그대로 `Interface/AddOns/` 아래에 배치합니다.
-- 기존 설정 호환을 위해 내부 TOC 파일명은 `MidnightBisGuide.toc`를 유지합니다.
+- `GrommashBisClub/GrommashBisClub.toc` 파일이 함께 들어가 있어야 게임에서 애드온이 표시됩니다.
 
 ## 데이터 생성
 
